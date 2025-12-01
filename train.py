@@ -157,6 +157,8 @@ def main():
         pos_encoder.train()
 
         running_loss = 0.0
+        running_coord_loss = 0.0
+        running_MPJPE_loss = 0.0
         num_train_samples = 0
 
         for pc, kps in train_loader:
@@ -178,11 +180,15 @@ def main():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            running_coord_loss += coord_loss.item() * B
+            running_MPJPE_loss += mpjpe.item() * B
             running_loss += loss.item() * B
             num_train_samples += B
 
         train_loss = running_loss / num_train_samples
+        coord_loss = running_coord_loss / num_train_samples
+        MPJPE_loss = running_MPJPE_loss / num_train_samples
+
 
         # === 实时 eval：每个 epoch 结束后在 val 集上评估 ===
         val_loss, val_mpjpe = evaluate(
@@ -198,8 +204,11 @@ def main():
         print(
             f"[Epoch {epoch+1}/{num_epochs}] "
             f"train_loss: {train_loss:.6f}  "
+            f"train_normal_loss: {coord_loss:.6f}  "
+            f"train_MPJPE_loss: {MPJPE_loss:.6f}   "
             f"val_loss: {val_loss:.6f}  "
             f"val_MPJPE: {val_mpjpe:.6f}"
+
         )
 
         # 如果 val_loss 更好，就保存最优 checkpoint

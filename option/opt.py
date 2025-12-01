@@ -1,5 +1,5 @@
 max_points = 32
-batch_size = 64
+batch_size = 96
 num_workers = 4
 num_epochs = 50
 
