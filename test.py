@@ -1,12 +1,14 @@
-import pickle
-import numpy as np
+from PointCloud.PointCloud import PointCloud
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+from model.transformer import Point_transformer
+import torch
 
-with open(r"dataset/raw/10.pkl", "rb") as f:
-    obj = pickle.load(f)
+B, N, C = 4, 128, 64
+model = Point_transformer(in_dim=C, out_points=19)
 
-lens = [s["x"].shape[0] for s in obj]
-print("frames:", len(lens))
-print("min points per frame:", min(lens))
-print("max points per frame:", max(lens))
-print("mean points per frame:", np.mean(lens))
-print("median points per frame:", np.median(lens))
+pos = torch.randn(B, N, 3)
+feat = torch.randn(B, N, C)
+
+out = model(pos, feat)
+print(out.shape)   # 期待: torch.Size([4, 19, 3])

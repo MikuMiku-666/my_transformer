@@ -25,8 +25,8 @@ class mmPoseLoader(Dataset):
     _float_pattern = re.compile(r'[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?')
 
     def __init__(self, csv_path: str, max_points: int,
-                 crop_to_human: bool = False,
-                 margin: float = 0.3):
+             crop_to_human: bool = False,
+             margin: float = 0.3):
         super().__init__()
         self.csv_path = csv_path
         self.max_points = max_points
@@ -59,17 +59,43 @@ class mmPoseLoader(Dataset):
             pc_list.append(pc_fixed)
             kps_list.append(kps)
 
-        # 检查关键点数量是否一致
-        k = kps_list[0].shape[0]
-        for i, f in enumerate(kps_list):
-            if f.shape[0] != k:
-                raise ValueError(
-                    f"frame {i} has {f.shape[0]} keypoints, expected {k}"
-                )
+        # ---------- 关键点数量一致性检查 + 过滤异常帧 ----------
+        # 先统计每种 keypoint 个数出现的频率，取“多数派”作为标准（通常是 19）
+        kp_counts = [kps.shape[0] for kps in kps_list]
+        # 简单众数：用字典数一下
+        count_freq = {}
+        for c in kp_counts:
+            count_freq[c] = count_freq.get(c, 0) + 1
+        # 找出现次数最多的 keypoint 个数
+        target_k = max(count_freq.items(), key=lambda x: x[1])[0]
+
+        valid_pc_list = []
+        valid_kps_list = []
+
+        for i, (pc_frame, kps_frame) in enumerate(zip(pc_list, kps_list)):
+            if kps_frame.shape[0] != target_k:
+                # 打个 log，方便你知道哪些帧被丢掉了
+                print(f"[mmPoseLoader] skip frame {i}: {kps_frame.shape[0]} keypoints (expected {target_k})")
+                continue
+            valid_pc_list.append(pc_frame)
+            valid_kps_list.append(kps_frame)
+
+        if len(valid_kps_list) == 0:
+            raise ValueError(
+                f"No valid frames in {csv_path}: all frames have wrong keypoint count. "
+                f"Keypoint count distribution = {count_freq}"
+            )
+
+        # 最终采用的关键点个数
+        k = target_k
 
         # 全部转成 torch.Tensor
-        self.point_clouds = torch.from_numpy(np.stack(pc_list, axis=0)).float()  # (F,max_points,3)
-        self.keypoints    = torch.from_numpy(np.stack(kps_list, axis=0)).float() # (F,K,3)
+        self.point_clouds = torch.from_numpy(np.stack(valid_pc_list, axis=0)).float()  # (F_valid,max_points,3)
+        self.keypoints    = torch.from_numpy(np.stack(valid_kps_list, axis=0)).float() # (F_valid,K,3)
+
+        # 也可以存一下 K，方便后面 debug
+        self.num_keypoints = k
+
 
     # ----------- 工具函数 ----------- #
 
